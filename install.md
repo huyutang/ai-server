@@ -28,23 +28,24 @@
 17. [Docker GPU 验证](#17-docker-gpu-验证)
 18. [模型预下载](#18-模型预下载)
 19. [AI 平台目录结构](#19-ai-平台目录结构)
-20. [vLLM 配置 — Qwen3.5-35B-A3B](#20-vllm-配置--qwen3.5-35b-a3b)
-21. [vLLM 配置 — DeepSeek-R1-Distill-Qwen-32B](#21-vllm-配置--deepseek-r1-distill-qwen-32b)
-22. [启动模型服务](#22-启动模型服务)
-23. [模型切换脚本](#23-模型切换脚本)
-24. [Open WebUI 安装](#24-open-webui-安装)
-25. [Open WebUI 接入 vLLM](#25-open-webui-接入-vllm)
-26. [VSCode Cline/Roo 接入](#26-vscode-clineroo-接入)
-27. [Continue 接入](#27-continue-接入)
-28. [防火墙配置](#28-防火墙配置)
-29. [vLLM API 密钥](#29-vllm-api-密钥)
-30. [GPU 监控](#30-gpu-监控)
-31. [日志管理](#31-日志管理)
-32. [备份策略](#32-备份策略)
-33. [端到端验证清单](#33-端到端验证清单)
-34. [推荐并发人数](#34-推荐并发人数)
-35. [运维手册](#35-运维手册)
-36. [故障排除](#36-故障排除)
+20. [vLLM 配置 — Qwen3.5-35B-A3B](#20-vllm-配置--qwen35-35b-a3b)
+21. [vLLM 配置 — Qwen3.5-35B-A3B-FP8](#21-vllm-配置--qwen35-35b-a3b-fp8)
+22. [vLLM 配置 — DeepSeek-R1-Distill-Qwen-32B](#22-vllm-配置--deepseek-r1-distill-qwen-32b)
+23. [启动模型服务](#23-启动模型服务)
+24. [模型切换脚本](#24-模型切换脚本)
+25. [Open WebUI 安装](#25-open-webui-安装)
+26. [Open WebUI 接入 vLLM](#26-open-webui-接入-vllm)
+27. [VSCode Cline/Roo 接入](#27-vscode-clineroo-接入)
+28. [Continue 接入](#28-continue-接入)
+29. [防火墙配置](#29-防火墙配置)
+30. [vLLM API 密钥](#30-vllm-api-密钥)
+31. [GPU 监控](#31-gpu-监控)
+32. [日志管理](#32-日志管理)
+33. [备份策略](#33-备份策略)
+34. [端到端验证清单](#34-端到端验证清单)
+35. [推荐并发人数](#35-推荐并发人数)
+36. [运维手册](#36-运维手册)
+37. [故障排除](#37-故障排除)
 
 ---
 
@@ -82,9 +83,10 @@
                ▼
 ┌─────────────────────────────────┐
 │  AI Server (RTX 5090)           │
-│  ├─ Open WebUI (:3000)         │
+│  ├─ Open WebUI (:8080)          │
 │  └─ vLLM (:8000)               │
-│       ├─ Qwen3.5-35B-A3B (主模型) │
+│       ├─ Qwen3.5-35B-A3B (BF16) │
+│       ├─ Qwen3.5-35B-A3B-FP8 (推荐默认) │
 │       └─ DeepSeek-R1-Distill-Qwen-32B (推理) │
 │       （按需切换，一次运行一个）    │
 └─────────────────────────────────┘
@@ -93,7 +95,8 @@
 **运行模式说明：**
 
 由于单张 RTX 5090 显存为 32GB，为确保模型运行质量，采用**按需切换**模式：
-- 默认运行 Qwen3.5-35B-A3B（日常开发、式样书、Coding）
+- 默认运行 Qwen3.5-35B-A3B-FP8（推荐，更快更省显存，支持32K上下文）
+- 或运行 Qwen3.5-35B-A3B BF16（精度最高，16K上下文）
 - 需要深度推理时切换到 DeepSeek-R1-Distill-Qwen-32B（Review、Bug分析、架构推理）
 - 提供一键切换脚本，切换时间约 30 秒
 
@@ -379,7 +382,7 @@ nvidia-smi
 - GPU: NVIDIA GeForce RTX 5090
 - Memory: 32GB
 
-如果 `nvidia-smi` 无输出或报错，参考[第36节故障排除](#36-故障排除)。
+如果 `nvidia-smi` 无输出或报错，参考[第37节故障排除](#37-故障排除)。
 
 ---
 
@@ -529,7 +532,7 @@ Logging Driver: json-file
 docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu24.04 nvidia-smi
 ```
 
-应显示 GPU 信息。如果报错，参考[第36节故障排除](#36-故障排除)。
+应显示 GPU 信息。如果报错，参考[第37节故障排除](#37-故障排除)。
 
 **运行完整测试：**
 
@@ -577,13 +580,27 @@ sudo chown -R $USER:$USER /opt/ai-platform
 **下载 Qwen3.5-35B-A3B（约 18GB）：**
 
 ```bash
+
+export HF_XET_HIGH_PERFORMANCE=1
+
 hf download Qwen/Qwen3.5-35B-A3B \
   --local-dir /opt/ai-platform/models/Qwen3.5-35B-A3B
+```
+
+**下载 Qwen3.5-35B-A3B-FP8（约 18GB）：**
+
+```bash
+export HF_XET_HIGH_PERFORMANCE=1
+
+hf download Qwen/Qwen3.5-35B-A3B-FP8 \
+  --local-dir /opt/ai-platform/models/Qwen3.5-35B-A3B-FP8
 ```
 
 **下载 DeepSeek-R1-Distill-Qwen-32B-AWQ（约 18GB）：**
 
 ```bash
+export HF_XET_HIGH_PERFORMANCE=1
+
 hf download casperhansen/DeepSeek-R1-Distill-Qwen-32B-AWQ \
   --local-dir /opt/ai-platform/models/DeepSeek-R1-Distill-Qwen-32B-AWQ
 ```
@@ -615,9 +632,15 @@ pipx ensurepath
 # 创建下载目录
 mkdir -p ~/ai-models
 
+export HF_XET_HIGH_PERFORMANCE=1
+
 # 下载 Qwen3.5-35B-A3B（约 18GB）
 hf download Qwen/Qwen3.5-35B-A3B \
   --local-dir ~/ai-models/Qwen3.5-35B-A3B
+
+# 下载 Qwen3.5-35B-A3B-FP8（约 18GB）
+hf download Qwen/Qwen3.5-35B-A3B-FP8 \
+  --local-dir ~/ai-models/Qwen3.5-35B-A3B-FP8
 
 # 下载 DeepSeek-R1-Distill-Qwen-32B-AWQ（约 18GB）
 hf download casperhansen/DeepSeek-R1-Distill-Qwen-32B-AWQ \
@@ -650,6 +673,7 @@ rsync -avP --info=progress2 \
 
 ```bash
 ls -la /opt/ai-platform/models/Qwen3.5-35B-A3B/
+ls -la /opt/ai-platform/models/Qwen3.5-35B-A3B-FP8/
 ls -la /opt/ai-platform/models/DeepSeek-R1-Distill-Qwen-32B-AWQ/
 ```
 
@@ -658,6 +682,8 @@ ls -la /opt/ai-platform/models/DeepSeek-R1-Distill-Qwen-32B-AWQ/
 > 💡 **提示**：如果从HuggingFace下载速度慢，可设置镜像：
 > ```bash
 > export HF_ENDPOINT=https://hf-mirror.com
+> export HF_XET_HIGH_PERFORMANCE=1
+> 
 > hf download Qwen/Qwen3.5-35B-A3B --local-dir ~/ai-models/Qwen3.5-35B-A3B
 > ```
 
@@ -675,9 +701,11 @@ mkdir -p /opt/ai-platform/{compose,logs,backups,scripts}
 /opt/ai-platform/
 ├── models/                  # 模型文件
 │   ├── Qwen3.5-35B-A3B/
+│   ├── Qwen3.5-35B-A3B-FP8/
 │   └── DeepSeek-R1-Distill-Qwen-32B-AWQ/
 ├── compose/                 # Docker Compose 文件
 │   ├── docker-compose-qwen.yml
+│   ├── docker-compose-qwen-fp8.yml
 │   └── docker-compose-r1.yml
 ├── scripts/                 # 运维脚本
 │   └── switch-model.sh
@@ -743,7 +771,62 @@ EOF
 
 ---
 
-# 21. vLLM 配置 — DeepSeek-R1-Distill-Qwen-32B
+# 21. vLLM 配置 — Qwen3.5-35B-A3B-FP8
+
+创建 Compose 文件：
+
+```bash
+cat > /opt/ai-platform/compose/docker-compose-qwen-fp8.yml << 'EOF'
+services:
+  vllm:
+    image: vllm/vllm-openai:v0.8.5
+    container_name: vllm-qwen-fp8
+    runtime: nvidia
+    ports:
+      - "8000:8000"
+    volumes:
+      - /opt/ai-platform/models:/models:ro
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    command:
+      - --model
+      - /models/Qwen3.5-35B-A3B-FP8
+      - --served-model-name
+      - qwen3.5-35b-fp8
+      - --quantization
+      - fp8
+      - --gpu-memory-utilization
+      - "0.85"
+      - --max-model-len
+      - "32768"
+      - --tensor-parallel-size
+      - "1"
+      - --trust-remote-code
+      - --api-key
+      - ${VLLM_API_KEY:-your-secure-api-key-here}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+EOF
+```
+
+**与 BF16 版 Qwen 配置的区别：**
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| --quantization | fp8 | FP8 量化，RTX 5090 原生支持 FP8 tensor core |
+| --max-model-len | 32768 | FP8 更省显存，可支持更长上下文（BF16版为16384） |
+| --served-model-name | qwen3.5-35b-fp8 | 区分于 BF16 版本 |
+
+> 💡 **FP8 vs BF16 对比**：FP8 版本显存占用降低约 40-50%，推理速度更快（FP8 tensor core 加速），精度损失极小。推荐作为日常默认模型使用。
+
+---
+
+# 22. vLLM 配置 — DeepSeek-R1-Distill-Qwen-32B
 
 创建 Compose 文件：
 
@@ -795,7 +878,7 @@ EOF
 
 ---
 
-# 22. 启动模型服务
+# 23. 启动模型服务
 
 **设置 API 密钥环境变量：**
 
@@ -848,7 +931,7 @@ curl -s http://localhost:8000/v1/chat/completions \
 
 ---
 
-# 23. 模型切换脚本
+# 24. 模型切换脚本
 
 创建一键切换脚本：
 
@@ -861,18 +944,21 @@ COMPOSE_DIR="/opt/ai-platform/compose"
 CURRENT=""
 
 # 检测当前运行的模型
-if docker ps --format '{{.Names}}' | grep -q "vllm-qwen"; then
+if docker ps --format '{{.Names}}' | grep -q "vllm-qwen-fp8"; then
+    CURRENT="qwen-fp8"
+elif docker ps --format '{{.Names}}' | grep -q "vllm-qwen"; then
     CURRENT="qwen"
 elif docker ps --format '{{.Names}}' | grep -q "vllm-r1"; then
     CURRENT="r1"
 fi
 
 usage() {
-    echo "用法: $0 [qwen|r1|status]"
+    echo "用法: $0 [qwen|qwen-fp8|r1|status]"
     echo ""
-    echo "  qwen   - 切换到 Qwen3.5-35B-A3B（日常开发、式样书）"
-    echo "  r1     - 切换到 DeepSeek-R1-Distill-Qwen-32B（深度推理、Review）"
-    echo "  status - 显示当前运行的模型"
+    echo "  qwen     - 切换到 Qwen3.5-35B-A3B BF16（日常开发、式样书）"
+    echo "  qwen-fp8 - 切换到 Qwen3.5-35B-A3B FP8（推荐，更快更省显存）"
+    echo "  r1       - 切换到 DeepSeek-R1-Distill-Qwen-32B（深度推理、Review）"
+    echo "  status   - 显示当前运行的模型"
     echo ""
     echo "当前运行: ${CURRENT:-无}"
 }
@@ -881,6 +967,7 @@ stop_all() {
     echo "停止当前模型..."
     cd "$COMPOSE_DIR"
     docker compose -f docker-compose-qwen.yml down 2>/dev/null || true
+    docker compose -f docker-compose-qwen-fp8.yml down 2>/dev/null || true
     docker compose -f docker-compose-r1.yml down 2>/dev/null || true
     echo "已停止。"
 }
@@ -913,11 +1000,19 @@ start_model() {
 case "${1:-}" in
     qwen)
         if [ "$CURRENT" = "qwen" ]; then
-            echo "Qwen3 已在运行中。"
+            echo "Qwen3 BF16 已在运行中。"
             exit 0
         fi
         stop_all
         start_model "qwen"
+        ;;
+    qwen-fp8)
+        if [ "$CURRENT" = "qwen-fp8" ]; then
+            echo "Qwen3 FP8 已在运行中。"
+            exit 0
+        fi
+        stop_all
+        start_model "qwen-fp8"
         ;;
     r1)
         if [ "$CURRENT" = "r1" ]; then
@@ -950,8 +1045,11 @@ chmod +x /opt/ai-platform/scripts/switch-model.sh
 # 查看当前状态
 /opt/ai-platform/scripts/switch-model.sh status
 
-# 切换到 Qwen3（默认）
+# 切换到 Qwen3 BF16
 /opt/ai-platform/scripts/switch-model.sh qwen
+
+# 切换到 Qwen3 FP8（推荐默认）
+/opt/ai-platform/scripts/switch-model.sh qwen-fp8
 
 # 切换到 DeepSeek-R1（深度推理）
 /opt/ai-platform/scripts/switch-model.sh r1
@@ -965,13 +1063,14 @@ source ~/.bashrc
 
 # 之后可以简写
 ai-switch qwen
+ai-switch qwen-fp8
 ai-switch r1
 ai-switch status
 ```
 
 ---
 
-# 24. Open WebUI 安装
+# 25. Open WebUI 安装
 
 在 vLLM 模型确认运行正常后，安装 Web 界面：
 
@@ -1006,7 +1105,7 @@ http://服务器IP:8080
 
 ---
 
-# 25. Open WebUI 接入 vLLM
+# 26. Open WebUI 接入 vLLM
 
 登录 Open WebUI 后：
 
@@ -1020,13 +1119,13 @@ http://服务器IP:8080
 | API Key | （你设置的 VLLM_API_KEY） |
 
 4. 点击保存，刷新模型列表
-5. 应该能看到 `qwen3.5-35b` 或 `deepseek-r1-32b`（取决于当前运行的模型）
+5. 应该能看到 `qwen3.5-35b`、`qwen3.5-35b-fp8` 或 `deepseek-r1-32b`（取决于当前运行的模型）
 
 **切换模型后：** Open WebUI 会自动检测到新模型，无需重新配置连接。
 
 ---
 
-# 26. VSCode Cline/Roo 接入
+# 27. VSCode Cline/Roo 接入
 
 在 VSCode 中安装 Cline 或 Roo 扩展后，配置连接：
 
@@ -1049,12 +1148,13 @@ http://服务器IP:8080
 3. 填写同上
 
 > 💡 **提示**：切换模型后，需要在 Cline/Roo 中将 Model 名称改为对应的 `served-model-name`：
-> - Qwen3 运行时：`qwen3.5-35b`
+> - Qwen3 BF16 运行时：`qwen3.5-35b`
+> - Qwen3 FP8 运行时：`qwen3.5-35b-fp8`
 > - DeepSeek-R1 运行时：`deepseek-r1-32b`
 
 ---
 
-# 27. Continue 接入
+# 28. Continue 接入
 
 在 VSCode 中安装 Continue 扩展后，编辑配置文件：
 
@@ -1069,7 +1169,13 @@ vim ~/.continue/config.yaml
 ```yaml
 models:
   - model: qwen3.5-35b
-    title: Qwen3-30B (Local)
+    title: Qwen3.5-35B BF16 (Local)
+    provider: openai
+    apiBase: http://服务器IP:8000/v1
+    apiKey: your-secure-api-key-here
+
+  - model: qwen3.5-35b-fp8
+    title: Qwen3.5-35B FP8 (Local)
     provider: openai
     apiBase: http://服务器IP:8000/v1
     apiKey: your-secure-api-key-here
@@ -1081,11 +1187,11 @@ models:
     apiKey: your-secure-api-key-here
 ```
 
-> 💡 两个模型都配置在列表中，但同一时间只有当前运行的模型可用。
+> 💡 三个模型都配置在列表中，但同一时间只有当前运行的模型可用。
 
 ---
 
-# 28. 防火墙配置
+# 29. 防火墙配置
 
 **启用 UFW：**
 
@@ -1123,7 +1229,7 @@ sudo ufw status verbose
 
 ---
 
-# 29. vLLM API 密钥
+# 30. vLLM API 密钥
 
 API 密钥已在 docker-compose 文件中通过环境变量 `VLLM_API_KEY` 配置。
 
@@ -1152,7 +1258,7 @@ ai-switch qwen  # 或 ai-switch r1
 
 ---
 
-# 30. GPU 监控
+# 31. GPU 监控
 
 **创建监控脚本：**
 
@@ -1195,7 +1301,7 @@ watch -n 1 nvidia-smi
 
 ---
 
-# 31. 日志管理
+# 32. 日志管理
 
 **Docker 日志已在 daemon.json 中限制大小（50MB × 3 文件）。**
 
@@ -1223,7 +1329,7 @@ sudo logrotate -f /etc/logrotate.d/ai-platform
 
 ---
 
-# 32. 备份策略
+# 33. 备份策略
 
 **创建备份脚本：**
 
@@ -1278,7 +1384,7 @@ chmod +x /opt/ai-platform/scripts/backup.sh
 
 ---
 
-# 33. 端到端验证清单
+# 34. 端到端验证清单
 
 安装完成后，按以下清单逐项验证：
 
@@ -1287,17 +1393,18 @@ chmod +x /opt/ai-platform/scripts/backup.sh
 [ ] 2. docker info 显示 Docker Root Dir: /opt/docker
 [ ] 3. docker info 显示 Default Runtime: nvidia
 [ ] 4. docker run --gpus all nvidia/cuda 正常显示GPU
-[ ] 5. 模型文件存在于 /opt/ai-platform/models/
+[ ] 5. 模型文件存在于 /opt/ai-platform/models/（3个模型目录）
 [ ] 6. ai-switch qwen 启动成功
 [ ] 7. curl localhost:8000/v1/models 返回模型列表
 [ ] 8. curl 推理测试返回正常结果
-[ ] 9. ai-switch r1 切换成功
-[ ] 10. Open WebUI 可访问并登录
-[ ] 11. Open WebUI 可正常对话
-[ ] 12. VSCode Cline/Roo 可连接并生成代码
-[ ] 13. ufw status 显示正确的防火墙规则
-[ ] 14. GPU 监控日志正常生成
-[ ] 15. 重启服务器后服务自动恢复
+[ ] 9. ai-switch qwen-fp8 切换成功
+[ ] 10. ai-switch r1 切换成功
+[ ] 11. Open WebUI 可访问并登录
+[ ] 12. Open WebUI 可正常对话
+[ ] 13. VSCode Cline/Roo 可连接并生成代码
+[ ] 14. ufw status 显示正确的防火墙规则
+[ ] 15. GPU 监控日志正常生成
+[ ] 16. 重启服务器后服务自动恢复
 ```
 
 **重启验证：**
@@ -1312,22 +1419,23 @@ curl -s http://localhost:8000/health
 
 ---
 
-# 34. 推荐并发人数
+# 35. 推荐并发人数
 
 单模型运行时的推荐并发：
 
-| 使用场景 | Qwen3.5-35B-A3B | DeepSeek-R1-Distill-Qwen-32B |
-|----------|---------------|---------------------------|
-| Open WebUI 聊天 | 15~25人 | 15~20人 |
-| 普通 Coding 辅助 | 10~15人 | 10~15人 |
-| Cline/Roo 重度开发 | 5~8人 | 6~10人 |
+| 使用场景 | Qwen3.5-35B-A3B (BF16) | Qwen3.5-35B-A3B (FP8) | DeepSeek-R1-Distill-Qwen-32B |
+|----------|------------------------|------------------------|---------------------------|
+| Open WebUI 聊天 | 15~25人 | 20~30人 | 15~20人 |
+| 普通 Coding 辅助 | 10~15人 | 12~18人 | 10~15人 |
+| Cline/Roo 重度开发 | 5~8人 | 6~10人 | 6~10人 |
 
 > 💡 MoE 模型（Qwen3.5-35B-A3B）激活参数少，推理速度快，适合日常高并发场景。
-> DeepSeek-R1-Distill-Qwen-32B 参数量增加，推理能力显著增强，适合需要深度思考的场景。
+> FP8 版本比 BF16 更省显存、推理更快，支持更长上下文（32K vs 16K），推荐作为日常默认。
+> DeepSeek-R1-Distill-Qwen-32B 推理能力显著增强，适合需要深度思考的场景。
 
 ---
 
-# 35. 运维手册
+# 36. 运维手册
 
 ## 日常操作
 
@@ -1342,8 +1450,11 @@ nvidia-smi
 **查看 vLLM 日志：**
 
 ```bash
-# Qwen3 运行时
+# Qwen3 BF16 运行时
 docker logs --tail 100 -f vllm-qwen
+
+# Qwen3 FP8 运行时
+docker logs --tail 100 -f vllm-qwen-fp8
 
 # DeepSeek-R1 运行时
 docker logs --tail 100 -f vllm-r1
@@ -1372,7 +1483,7 @@ ai-switch qwen
 docker stop open-webui
 docker rm open-webui
 docker pull ghcr.io/open-webui/open-webui:v0.6.x
-# 重新运行第24节的 docker run 命令（数据已持久化，不会丢失）
+# 重新运行第25节的 docker run 命令（数据已持久化，不会丢失）
 ```
 
 ## 定期维护
@@ -1387,7 +1498,7 @@ docker pull ghcr.io/open-webui/open-webui:v0.6.x
 
 ---
 
-# 36. 故障排除
+# 37. 故障排除
 
 ## nvidia-smi 无输出或报错
 
@@ -1492,9 +1603,11 @@ sudo systemctl enable docker
 /etc/ssh/sshd_config                                 # SSH 配置
 /etc/logrotate.d/ai-platform                         # 日志轮转
 /opt/docker/                                         # Docker 数据
-/opt/ai-platform/models/Qwen3.5-35B-A3B/              # Qwen3 模型
+/opt/ai-platform/models/Qwen3.5-35B-A3B/              # Qwen3 BF16 模型
+/opt/ai-platform/models/Qwen3.5-35B-A3B-FP8/          # Qwen3 FP8 模型
 /opt/ai-platform/models/DeepSeek-R1-Distill-Qwen-32B-AWQ/  # R1 模型
-/opt/ai-platform/compose/docker-compose-qwen.yml     # Qwen3 配置
+/opt/ai-platform/compose/docker-compose-qwen.yml     # Qwen3 BF16 配置
+/opt/ai-platform/compose/docker-compose-qwen-fp8.yml # Qwen3 FP8 配置
 /opt/ai-platform/compose/docker-compose-r1.yml       # R1 配置
 /opt/ai-platform/scripts/switch-model.sh             # 模型切换脚本
 /opt/ai-platform/scripts/gpu-monitor.sh              # GPU 监控
@@ -1511,7 +1624,8 @@ sudo systemctl enable docker
 ```bash
 # 模型管理
 ai-switch status          # 查看当前模型
-ai-switch qwen            # 切换到 Qwen3
+ai-switch qwen            # 切换到 Qwen3 BF16
+ai-switch qwen-fp8        # 切换到 Qwen3 FP8（推荐）
 ai-switch r1              # 切换到 DeepSeek-R1
 
 # 服务状态
@@ -1520,8 +1634,10 @@ nvidia-smi                # GPU 状态
 df -h /opt                # 磁盘使用
 
 # 日志查看
-docker logs -f vllm-qwen  # vLLM 日志
-docker logs -f open-webui  # WebUI 日志
+docker logs -f vllm-qwen      # Qwen3 BF16 日志
+docker logs -f vllm-qwen-fp8  # Qwen3 FP8 日志
+docker logs -f vllm-r1        # DeepSeek-R1 日志
+docker logs -f open-webui      # WebUI 日志
 
 # API 测试
 curl http://localhost:8000/health
