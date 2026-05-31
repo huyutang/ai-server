@@ -712,7 +712,7 @@ mkdir -p /opt/ai-platform/{compose,logs,backups,scripts}
 cat > /opt/ai-platform/compose/docker-compose-qwen35b.yml << 'COMPOSE_35B'
 services:
   vllm:
-    image: vllm/vllm-openai:v0.22.0
+    image: vllm/vllm-openai:cu130-nightly
     container_name: vllm-qwen35b
     runtime: nvidia
     ports:
@@ -751,7 +751,7 @@ COMPOSE_35B
 
 | 参数 | 值 | 说明 |
 |------|-----|------|
-| image | vllm/vllm-openai:v0.22.0 | 锁定版本，避免意外升级 |
+| image | vllm/vllm-openai:cu130-nightly | 锁定版本，避免意外升级 |
 | --model | /models/Qwen3.5-35B-A3B-GPTQ-Int4 | 使用本地预下载的模型 |
 | --quantization | gptq | GPTQ-Int4 量化，需要显式指定 |
 | --gpu-memory-utilization | 0.90 | 单模型独占GPU，留10%系统开销 |
@@ -770,7 +770,7 @@ COMPOSE_35B
 cat > /opt/ai-platform/compose/docker-compose-qwen27b.yml << 'COMPOSE_27B'
 services:
   vllm:
-    image: vllm/vllm-openai:v0.22.0
+    image: vllm/vllm-openai:cu130-nightly
     container_name: vllm-qwen27b
     runtime: nvidia
     ports:
