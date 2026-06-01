@@ -43,21 +43,21 @@ Resizable BAR Enabled 提升GPU性能
 
 1.4 磁盘分区方案（4TB SSD）
 
-安装类型选择 "其他选项" 手动分区：
+安装类型选择 "其他选项" 手动分区，确保 AI 相关数据集中存放：
 
 挂载点 大小 文件系统 说明
 /boot/efi 1 GB FAT32 EFI引导分区
-/ (根目录) 200 GB ext4 系统和应用程序
-/home 500 GB ext4 用户数据，重装系统时不丢失
-/mnt/models 剩余空间 (~3.3TB) ext4 大模型专用存储
+/boot 2 GB ext4 内核文件
+swap 32 GB swap 交换空间
+/ 100 GB ext4 系统根目录
+/var 200 GB ext4 系统日志、apt缓存
+/opt 3 TB ext4 Docker + AI模型 + 平台数据
+/home 剩余空间 ext4 用户目录
 
 ```bash
-# 挂载模型专用分区
-sudo mkdir -p /mnt/models
-sudo mount /dev/sdX5 /mnt/models  # 替换为实际分区
-
-# 开机自动挂载（编辑/etc/fstab）
-echo "UUID=$(sudo blkid -s UUID -o value /dev/sdX5) /mnt/models ext4 defaults 0 2" | sudo tee -a /etc/fstab
+# 创建 AI 平台根目录
+sudo mkdir -p /opt/ai-platform
+sudo chown -R $(whoami):$(whoami) /opt/ai-platform
 ```
 
 1.5 系统初始化
@@ -103,15 +103,11 @@ sudo apt install -y linux-headers-$(uname -r)
 
 2.3 安装RTX 5090驱动
 
-RTX 5090 基于Blackwell架构，必须使用 nvidia-driver-580-open（开源内核模块版本），闭源版无法识别显卡。
+RTX 5090 基于Blackwell架构，推荐使用 Ubuntu 驱动自动安装工具以获取最匹配的稳定版本。
 
 ```bash
-# 添加官方PPA
-sudo add-apt-repository ppa:graphics-drivers/ppa -y
-sudo apt update
-
-# 安装开源内核模块版本驱动
-sudo apt install -y nvidia-driver-580-open
+# 安装推荐驱动
+sudo ubuntu-drivers autoinstall
 
 # 重启系统
 sudo reboot
@@ -156,21 +152,25 @@ curl -fsSL https://ollama.com/install.sh | sh
 ollama --version
 ```
 
-3.2 配置模型存储路径（指向4TB SSD）
+3.2 配置模型存储路径（指向 /opt 分区）
 
 ```bash
 # 停止Ollama服务
 sudo systemctl stop ollama
 
-# 创建模型目录
-sudo mkdir -p /mnt/models/ollama
-sudo chown -R $(whoami):$(whoami) /mnt/models/ollama
+# 创建模型目录并授权给 ollama 用户
+sudo mkdir -p /opt/ai-platform/models/ollama
+sudo chown -R ollama:ollama /opt/ai-platform/models/ollama
+
+# 确保父目录对 ollama 用户可遍历（必须设置 x 权限）
+sudo chmod 755 /opt/ai-platform
+sudo chmod 755 /opt/ai-platform/models
 
 # 配置systemd服务环境变量
 sudo mkdir -p /etc/systemd/system/ollama.service.d
 cat << EOF | sudo tee /etc/systemd/system/ollama.service.d/override.conf
 [Service]
-Environment="OLLAMA_MODELS=/mnt/models/ollama"
+Environment="OLLAMA_MODELS=/opt/ai-platform/models/ollama"
 Environment="OLLAMA_KEEP_ALIVE=-1"
 Environment="OLLAMA_HOST=0.0.0.0:11434"
 Environment="OLLAMA_NUM_GPU=1"
@@ -185,7 +185,7 @@ sudo systemctl enable ollama
 3.3 环境变量说明
 
 变量 值 说明
-OLLAMA_MODELS /mnt/models/ollama 模型存储路径（4TB SSD）
+OLLAMA_MODELS /opt/ai-platform/models/ollama 模型存储路径（/opt 分区）
 OLLAMA_KEEP_ALIVE -1 模型常驻内存，下次响应更快
 OLLAMA_HOST 0.0.0.0:11434 允许外部访问API
 OLLAMA_NUM_GPU 1 使用1张GPU（RTX 5090）
@@ -425,8 +425,10 @@ journalctl -u ollama -f
 # 常见原因：端口冲突
 sudo netstat -tulnp | grep 11434
 
-# 权限修复
-sudo chown -R $(whoami):$(whoami) /mnt/models/ollama
+# 权限修复（确保 ollama 用户拥有目录所有权且父目录可遍历）
+sudo chown -R ollama:ollama /opt/ai-platform/models/ollama
+sudo chmod 755 /opt/ai-platform
+sudo chmod 755 /opt/ai-platform/models
 ```
 
 6.6 内核版本过低
